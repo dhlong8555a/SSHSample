@@ -1,0 +1,132 @@
+//--------------------------Tomcat plugin dependence S--------------------------
+buildscript {
+    repositories {
+        maven { url "http://172.21.84.92:9091/nexus/content/groups/devops" }
+        mavenCentral()
+        jcenter()
+    }
+    dependencies {
+        classpath "com.bmuschko:gradle-tomcat-plugin:2.2.4"
+    }
+}
+//--------------------------Tomcat plugin dependence E--------------------------
+
+group 'com.adv'
+version '1.0.0'
+
+apply plugin: 'java'
+apply plugin: 'war'
+apply plugin: 'com.bmuschko.tomcat'
+
+sourceCompatibility = 1.8
+
+project.webAppDirName = "src/main/webapp"
+war.archiveName = "devops.war"
+
+ext {
+    slf4jVer = '1.7.20'
+    log4jVer = '1.2.17'
+    springframeworkVer = '4.3.9.RELEASE'
+    jacksonVer = '2.7.4'
+    tomcatVer = '8.0.33'
+    hibernatecoreVer = '5.1.0.Final'
+    postgresqlDriverVer='9.4.1208.jre7'
+}
+
+repositories {
+    maven { url 'http://172.21.84.92:9091/nexus/content/groups/devops' }
+    mavenCentral()
+}
+
+configurations {
+    jar3rdParty
+    logDependJar
+    //normalDependProjects
+}
+
+dependencies {
+    logDependJar "org.slf4j:slf4j-api:${slf4jVer}",
+            "org.slf4j:slf4j-log4j12:${slf4jVer}",
+            "log4j:log4j:${log4jVer}"
+}
+
+dependencies {
+    jar3rdParty "com.fasterxml.jackson.core:jackson-core:${jacksonVer}",
+            "com.fasterxml.jackson.core:jackson-annotations:${jacksonVer}",
+            "com.fasterxml.jackson.core:jackson-databind:${jacksonVer}"
+    jar3rdParty "org.springframework:spring-core:${springframeworkVer}",
+            "org.springframework:spring-beans:${springframeworkVer}",
+            "org.springframework:spring-context:${springframeworkVer}",
+            "org.springframework:spring-context-support:${springframeworkVer}",
+            "org.springframework:spring-expression:${springframeworkVer}",
+            "org.springframework:spring-web:${springframeworkVer}",
+            "org.springframework:spring-webmvc:${springframeworkVer}",
+            "org.springframework:spring-aop:${springframeworkVer}",
+            "org.springframework:spring-aspects:${springframeworkVer}",
+            "org.springframework:spring-instrument:${springframeworkVer}",
+            "org.springframework:spring-instrument-tomcat:${springframeworkVer}",
+            "org.springframework:spring-tx:${springframeworkVer}",
+            "org.springframework:spring-orm:${springframeworkVer}"
+    jar3rdParty "org.hibernate:hibernate-core:${hibernatecoreVer}",
+            "org.postgresql:postgresql:${postgresqlDriverVer}"
+}
+
+dependencies {
+    compile configurations.logDependJar
+    compile configurations.jar3rdParty
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+//--------------------------Tomcat plugin configuration S--------------------------
+dependencies{
+    tomcat "org.apache.tomcat.embed:tomcat-embed-core:${tomcatVer}",
+            "org.apache.tomcat.embed:tomcat-embed-logging-juli:${tomcatVer}",
+            "org.apache.tomcat.embed:tomcat-embed-jasper:${tomcatVer}"
+}
+
+tomcat {
+    httpPort = 7080
+    httpsPort = 7443
+    ajpPort = 7009
+    stopPort = 7081
+    enableSSL = false
+    contextPath = 'WebApps'
+
+    users {
+        user {
+            username = 'admin'
+            password = 'admin'
+        }
+    }
+}
+
+tomcatRun.contextPath = '/devops'
+tomcatRunWar.contextPath = '/devops'
+
+//add tomcatDebug task
+task tomcatDebug {
+    // Create a new task tomcatDebug, add a description and add it to the same group as tomcatRun
+    description "Starting Tomcat with debugger enabled on port 5009."
+    group "web application"
+    doLast{
+        org.gradle.tooling.ProjectConnection conn = org.gradle.tooling.GradleConnector.newConnector()
+                .forProjectDirectory(new File("$rootDir"))
+                .connect();
+        try {
+            org.gradle.tooling.model.build.BuildEnvironment env = conn.getModel(org.gradle.tooling.model.build.BuildEnvironment.class);
+            org.gradle.tooling.BuildLauncher build = conn.newBuild();
+            build.forTasks("tomcatRun");
+            // Enable debug via jvm arguments and append JVM arguments of the currently running vm (except -D).
+            build.setJvmArguments("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5009", *env.java.jvmArguments);
+            // Run tomcatRun in the new JVM with debug parameters
+            build.run();
+        } finally {
+            conn.close();
+        }
+    }
+}
+//--------------------------Tomcat plugin configuration E--------------------------
